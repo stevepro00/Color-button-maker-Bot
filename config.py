@@ -14,7 +14,7 @@ PICS = (os.environ.get("PICS", "https://i.ibb.co/MDssddJp/pic.jpg https://i.ibb.
 FSUB_PIC = os.environ.get("FSUB_PIC", "https://i.ibb.co/rGgLzw3b/photo.jpg")
 
 LOG_CHANNEL = int(os.environ.get("LOG_CHANNEL", "-1002421781174"))
-NEW_REQ_MODE = os.environ.get("NEW_REQ_MODE", "False").lower() == "true"
+NEW_REQ_MODE = os.environ.get("NEW_REQ_MODE", "True").lower() == "true"
 DB_URI = os.environ.get("DB_URI", "")
 DB_NAME = os.environ.get("DB_NAME", "Cluster0")
 IS_FSUB = os.environ.get("IS_FSUB", "True").lower() == "true"  # Set "True" For Enable Force Subscribe
