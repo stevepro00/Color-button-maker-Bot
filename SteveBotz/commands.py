@@ -2,18 +2,24 @@ import random
 from pyrogram import Client, filters, enums
 from pyrogram.errors import *
 from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
-from config import *
+from config import PICS, BOT_USERNAME, LOG_CHANNEL, SUPPORT, API_ID, API_HASH, NEW_REQ_MODE
 import asyncio
 from Script import text
 from .database import sb
-from .fsub import get_fsub
 
 @Client.on_message(filters.command("start"))
-async def start_cmd(client, message):
-    # fsub check
-    if IS_FSUB and not await get_fsub(client, message):
-        return
-        
+async def start_cmd(client, message):           
+    await message.reply_photo(
+        photo=random.choice(PICS),
+        caption=text.START.format(message.from_user.mention),
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton('⇆ ᴀᴅᴅ ᴍᴇ ᴛᴏ ʏᴏᴜʀ ɢʀᴏᴜᴘ ⇆', url=f"https://telegram.me/{BOT_USERNAME}?startgroup=true&admin=invite_users")],
+            [InlineKeyboardButton('ℹ️ ʜᴇʟᴘ', callback_data='help'),
+             InlineKeyboardButton('💌 ᴀʙᴏᴜᴛ', callback_data='about')],
+            [InlineKeyboardButton('⇆ ᴀᴅᴅ ᴍᴇ ᴛᴏ ʏᴏᴜʀ ᴄʜᴀɴɴᴇʟ ⇆', url=f"https://telegram.me/{BOT_USERNAME}?startchannel=true&admin=invite_users")]
+            ])
+        )
+    
     if await sb.get_user(message.from_user.id) is None:
         await sb.add_user(message.from_user.id, message.from_user.first_name)
         bot = await client.get_me()
@@ -26,23 +32,9 @@ async def start_cmd(client, message):
                 bot.username
             )
         )
-    await message.reply_photo(
-        photo=random.choice(PICS),
-        caption=text.START.format(message.from_user.mention),
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton('⇆ ᴀᴅᴅ ᴍᴇ ᴛᴏ ʏᴏᴜʀ ɢʀᴏᴜᴘ ⇆', url=f"https://telegram.me/{BOT_USERNAME}?startgroup=true&admin=invite_users")],
-            [InlineKeyboardButton('ℹ️ ʜᴇʟᴘ', callback_data='help'),
-             InlineKeyboardButton('💌 ᴀʙᴏᴜᴛ', callback_data='about')],
-            [InlineKeyboardButton('⇆ ᴀᴅᴅ ᴍᴇ ᴛᴏ ʏᴏᴜʀ ᴄʜᴀɴɴᴇʟ ⇆', url=f"https://telegram.me/{BOT_USERNAME}?startchannel=true&admin=invite_users")]
-            ])
-        )
 
 @Client.on_message(filters.command("help") & filters.private)
-async def help_cmd(client, message):
-    # fsub check
-    if IS_FSUB and not await get_fsub(client, message):
-        return
-        
+async def help_cmd(client, message):    
     sb = await message.reply(text.HELP.format(message.from_user.mention), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🪷 𝘚𝘶𝘱𝘱𝘰𝘳𝘵 𝘎𝘳𝘰𝘶𝘱", url=SUPPORT)]]))
     await asyncio.sleep(300)
     await sb.delete()
@@ -52,11 +44,7 @@ async def help_cmd(client, message):
         pass
 
 @Client.on_message(filters.command('accept') & filters.private)
-async def accept(client, message):
-    # fsub check
-    if IS_FSUB and not await get_fsub(client, message):
-        return
-        
+async def accept(client, message):        
     show = await message.reply("**Please Wait.....**")
     user_data = await sb.get_session(message.from_user.id)
     if user_data is None:
