@@ -1,11 +1,10 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.errors import FloodWait, UserIsBlocked, PeerIdInvalid, InputUserDeactivated
-import asyncio
-import re
 from config import ADMIN
 from .database import sb
 from collections import defaultdict
+import re, os, sys, asyncio
 
 def parse_button_markup(text: str):
     lines = text.split("\n")
@@ -130,3 +129,10 @@ async def broadcasting_func(client: Client, message: Message):
         f"📊 Active Users (Now): <code>{active_users}</code>",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🎭 Close", callback_data="close")]]),
     )
+
+@Client.on_message(filters.private & filters.user(ADMIN) & filters.command("restart"))
+async def restart_bot(_, message: Message):
+    steve = await message.reply_text("**🔄 Restarting bot...**")
+    await asyncio.sleep(3)
+    await steve.edit("**✅ Bot restarted successfully**")
+    os.execl(sys.executable, sys.executable, *sys.argv)
