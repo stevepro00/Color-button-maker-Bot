@@ -4,7 +4,7 @@ from typing import List
 API_ID = os.environ.get("API_ID", "")
 API_HASH = os.environ.get("API_HASH", "")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
-ADMIN = int(os.environ.get("ADMIN", "6317211079"))
+ADMIN = int(os.environ.get("ADMIN", "8587894416"))
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "https://t.me/AmaniContactBot")
 BOT_USERNAME = os.environ.get("BOT_USERNAME", "SteveApproverBot")
 
