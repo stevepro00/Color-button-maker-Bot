@@ -2,10 +2,11 @@ import random
 from pyrogram import Client, filters, enums
 from pyrogram.errors import *
 from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
-from config import PICS, BOT_USERNAME, LOG_CHANNEL, SUPPORT, API_ID, API_HASH, NEW_REQ_MODE
+from config import PICS, BOT_USERNAME, LOG_CHANNEL, SUPPORT
 import asyncio
 from Script import text
 from .database import sb
+from .admin import parse_button_markup
 
 @Client.on_message(filters.command("start"))
 async def start_cmd(client, message):           
@@ -13,12 +14,10 @@ async def start_cmd(client, message):
         photo=random.choice(PICS),
         caption=text.START.format(message.from_user.mention),
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton('⇆ ᴀᴅᴅ ᴍᴇ ᴛᴏ ʏᴏᴜʀ ɢʀᴏᴜᴘ ⇆', url=f"https://telegram.me/{BOT_USERNAME}?startgroup=true&admin=invite_users")],
             [InlineKeyboardButton('ℹ️ ʜᴇʟᴘ', callback_data='help'),
-             InlineKeyboardButton('💌 ᴀʙᴏᴜᴛ', callback_data='about')],
-            [InlineKeyboardButton('⇆ ᴀᴅᴅ ᴍᴇ ᴛᴏ ʏᴏᴜʀ ᴄʜᴀɴɴᴇʟ ⇆', url=f"https://telegram.me/{BOT_USERNAME}?startchannel=true&admin=invite_users")]
-            ])
-        )
+             InlineKeyboardButton('💌 ᴀʙᴏᴜᴛ', callback_data='about')]
+        ])
+    )
     
     if await sb.get_user(message.from_user.id) is None:
         await sb.add_user(message.from_user.id, message.from_user.first_name)
@@ -35,62 +34,94 @@ async def start_cmd(client, message):
 
 @Client.on_message(filters.command("help") & filters.private)
 async def help_cmd(client, message):    
-    sb = await message.reply(text.HELP.format(message.from_user.mention), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🪷 𝘚𝘶𝘱𝘱𝘰𝘳𝘵 𝘎𝘳𝘰𝘶𝘱", url=SUPPORT)]]))
+    msg = await message.reply(text.HELP, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🪷 𝘚𝘶𝘱𝘱𝘰𝘳𝘵 𝘎𝘳𝘰𝘶𝘱", url=SUPPORT)]]))
     await asyncio.sleep(300)
-    await sb.delete()
+    await msg.delete()
     try:
         await message.delete()
     except:
         pass
 
-@Client.on_message(filters.command('accept') & filters.private)
-async def accept(client, message):        
-    show = await message.reply("**Please Wait.....**")
-    user_data = await sb.get_session(message.from_user.id)
-    if user_data is None:
-        return await show.edit("**To accept join requests, please /login first.**")
+@Client.on_message(filters.command("connect") & filters.private)
+async def connect_channel(client, message):
+    if len(message.command) < 2:
+        return await message.reply("**⚠️ Syntax:** `/connect -100xxxxxxx`\nMake sure I am an admin in that channel first!")
+    
     try:
-        acc = Client("joinrequest", session_string=user_data, api_id=API_ID, api_hash=API_HASH)
-        await acc.connect()
-    except:
-        return await show.edit("**Your login session has expired. Use /logout first, then /login again.**")
-    await show.edit("**Forward a message from your Channel or Group (with forward tag).\n\nMake sure your logged-in account is an admin there with full rights.**")
-    fwd_msg = await client.listen(message.chat.id)
-    if fwd_msg.forward_from_chat and fwd_msg.forward_from_chat.type not in [enums.ChatType.PRIVATE, enums.ChatType.BOT]:
-        chat_id = fwd_msg.forward_from_chat.id
-        try:
-            info = await acc.get_chat(chat_id)
-        except:
-            return await show.edit("**Error: Ensure your account is admin in this Channel/Group with required rights.**")
-    else:
-        return await message.reply("**Message not forwarded from a valid Channel/Group.**")
-    await fwd_msg.delete()
-    msg = await show.edit("**Accepting all join requests... Please wait.**")
-    try:
-        while True:
-            await acc.approve_all_chat_join_requests(chat_id)
-            await asyncio.sleep(1)
-            join_requests = [req async for req in acc.get_chat_join_requests(chat_id)]
-            if not join_requests:
-                break
-        await msg.edit("**✅ Successfully accepted all join requests.**")
+        channel_id = int(message.command[1])
+        chat = await client.get_chat(channel_id)
+        member = await chat.get_member(client.me.id)
+        if member.status not in [enums.ChatMemberStatus.ADMINISTRATOR, enums.ChatMemberStatus.OWNER]:
+            return await message.reply("❌ I must be an admin in the channel to post!")
+            
+        await sb.connect_channel(message.from_user.id, channel_id)
+        await message.reply(f"**✅ Successfully connected to {chat.title}!**\nNow, send me a post to create.")
     except Exception as e:
-        await msg.edit(f"**An error occurred:** `{str(e)}`")
+        await message.reply(f"**❌ Error:** Make sure the ID is correct and I am an admin.\n`{str(e)}`")
 
-@Client.on_chat_join_request()
-async def approve_new(client, m):
-    if not NEW_REQ_MODE:
-        return
-    try:
-        await client.approve_chat_join_request(m.chat.id, m.from_user.id)
+@Client.on_message(filters.command("edit") & filters.private)
+async def edit_post(client, message):
+    if len(message.command) < 2:
+        return await message.reply("**⚠️ Syntax:** `/edit <message_id>`\nReply to this with the new text and buttons.")
+    
+    channel_id = await sb.get_connected_channel(message.from_user.id)
+    if not channel_id:
+        return await message.reply("❌ Please `/connect` a channel first.")
+        
+    msg_id = int(message.command[1])
+    await message.reply(
+        f"**✏️ Editing Message ID {msg_id} in your connected channel.**\n\n"
+        f"Now, send me the new content and buttons for this post.",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("Cancel Edit", callback_data="cancel", style=enums.ButtonStyle.DANGER)
+        ]])
+    )
+    await sb.set_session(message.from_user.id, {"action": "edit", "msg_id": msg_id})
+
+@Client.on_message(filters.private & filters.text & ~filters.command(["start", "help", "connect", "edit", "stats", "broadcast", "restart", "delreq"]))
+async def create_post_preview(client, message):
+    reply_markup, text_content = parse_button_markup(message.text)
+    
+    session = await sb.get_session(message.from_user.id)
+    if session and isinstance(session, dict) and session.get("action") == "edit":
+        channel_id = await sb.get_connected_channel(message.from_user.id)
         try:
-            await client.send_message(
-                m.from_user.id,
-                f"**Hello {m.from_user.mention} 🙋🏻‍♂️ Wassup,\n\n𝖸𝗈𝗎𝗋 𝖱𝖾𝗊𝗎𝗌𝗍 𝖳𝗈 𝖩𝗈𝗂𝗇 {m.chat.title} 𝖧𝖺𝗌 𝖡𝖾𝖾𝗇 𝖠𝖼𝖼𝖾𝗉𝗍𝖾𝖽.**"
+            await client.edit_message_text(
+                chat_id=channel_id,
+                message_id=session["msg_id"],
+                text=text_content,
+                reply_markup=reply_markup
             )
-        except:
-            pass
-    except Exception as e:
-        print(str(e))
-        pass
+            await message.reply("**✅ Post successfully edited in the channel!**")
+        except Exception as e:
+            await message.reply(f"**❌ Failed to edit:** `{str(e)}`")
+        finally:
+            await sb.set_session(message.from_user.id, None)
+        return
 
+    if not text_content:
+        return await message.reply(
+            "**❌ No valid buttons found in your message or text is empty.**\n\n"
+            "Use the format:\n"
+            "`Your message text here`\n"
+            "`[Button Name](link_or_data | style)`"
+        )
+
+    preview_msg = await message.reply_text(
+        text=text_content,
+        reply_markup=reply_markup
+    )
+    
+    await sb.set_session(message.from_user.id, {"draft": message.text})
+    
+    controls = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📤 Send to Channel", callback_data="send_channel", style=enums.ButtonStyle.SUCCESS)],
+        [InlineKeyboardButton("💾 Save for Inline Mode", callback_data="save_inline", style=enums.ButtonStyle.PRIMARY)],
+        [InlineKeyboardButton("❌ Discard", callback_data="cancel", style=enums.ButtonStyle.DANGER)]
+    ])
+    
+    await message.reply(
+        "**👀 Preview generated above!**\nWhat would you like to do with this post?",
+        reply_markup=controls,
+        reply_to_message_id=preview_msg.id
+    )
