@@ -1,3 +1,5 @@
+import random
+import string
 from typing import Any
 from config import DB_URI, DB_NAME
 from motor import motor_asyncio
@@ -11,6 +13,7 @@ db = client[DB_NAME]
 class Stevebotz:
     def __init__(self):
         self.users = db["users"]
+        self.posts = db["posts"] # Nayi collection saved posts ke liye
         self.cache: dict[int, dict[str, Any]] = {}
 
     async def add_user(self, user_id: int, name: str) -> dict[str, Any] | None:
@@ -95,5 +98,37 @@ class Stevebotz:
         except Exception as e:
             print("Error in delete_user:", e)
             return False
+
+    # --- NAYE FUNCTIONS ---
+    async def connect_channel(self, user_id: int, channel_id: int) -> bool:
+        try:
+            await self.users.update_one(
+                {"user_id": user_id},
+                {"$set": {"connected_channel": channel_id}},
+                upsert=True
+            )
+            if user_id in self.cache:
+                self.cache[user_id]["connected_channel"] = channel_id
+            return True
+        except Exception as e:
+            print("Error connecting channel:", e)
+            return False
+
+    async def get_connected_channel(self, user_id: int) -> int | None:
+        user = await self.get_user(user_id)
+        return user.get("connected_channel") if user else None
+
+    async def save_post(self, user_id: int, raw_text: str) -> str:
+        post_id = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        await self.posts.insert_one({
+            "post_id": post_id,
+            "user_id": user_id,
+            "raw_text": raw_text
+        })
+        return post_id
+
+    async def get_user_posts(self, user_id: int):
+        cursor = self.posts.find({"user_id": user_id}).sort("_id", -1).limit(50)
+        return await cursor.to_list(length=50)
 
 sb = Stevebotz()
