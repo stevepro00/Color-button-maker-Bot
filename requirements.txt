@@ -1,10 +1,8 @@
-pyrofork>=2.3.68
+kurigram
 pytz
 tgcrypto
 motor
 aiohttp
-
-# For Web Deployable
 Flask
 gunicorn
 Jinja2
