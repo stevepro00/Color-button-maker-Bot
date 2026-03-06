@@ -1,4 +1,4 @@
-from pyrogram import Client, filters
+from pyrogram import Client, filters, enums
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.errors import FloodWait, UserIsBlocked, PeerIdInvalid, InputUserDeactivated
 from config import ADMIN
@@ -10,21 +10,50 @@ def parse_button_markup(text: str):
     lines = text.split("\n")
     buttons = []
     final_text_lines = []
+    button_pattern = re.compile(r"\[(.+?)\]\((.+?)\)")
+    
+    style_map = {
+        "danger": enums.ButtonStyle.DANGER,
+        "red": enums.ButtonStyle.DANGER,
+        "success": enums.ButtonStyle.SUCCESS,
+        "green": enums.ButtonStyle.SUCCESS,
+        "primary": enums.ButtonStyle.PRIMARY,
+        "blue": enums.ButtonStyle.PRIMARY,
+        "default": enums.ButtonStyle.DEFAULT
+    }
+
     for line in lines:
-        row = []
         parts = line.split("||")
+        row = []
         is_button_line = True
+        
         for part in parts:
-            match = re.fullmatch(r"\[(.+?)\]\((https?://[^\s]+)\)", part.strip())
+            match = button_pattern.fullmatch(part.strip())
             if match:
-                row.append(InlineKeyboardButton(match[1], url=match[2]))
+                btn_text = match.group(1).strip()
+                btn_data_raw = match.group(2).strip()
+                style = enums.ButtonStyle.DEFAULT
+                
+                if "|" in btn_data_raw:
+                    btn_data, style_str = btn_data_raw.split("|", 1)
+                    btn_data = btn_data.strip()
+                    style = style_map.get(style_str.strip().lower(), enums.ButtonStyle.DEFAULT)
+                else:
+                    btn_data = btn_data_raw
+                    
+                if btn_data.startswith(("http://", "https://", "t.me/")):
+                    row.append(InlineKeyboardButton(btn_text, url=btn_data, style=style))
+                else:
+                    row.append(InlineKeyboardButton(btn_text, callback_data=btn_data, style=style))
             else:
                 is_button_line = False
                 break
+        
         if is_button_line and row:
             buttons.append(row)
         else:
             final_text_lines.append(line)
+            
     return InlineKeyboardMarkup(buttons) if buttons else None, "\n".join(final_text_lines).strip()
 
 @Client.on_message(filters.command("stats") & filters.private & filters.user(ADMIN))
@@ -68,9 +97,7 @@ async def broadcasting_func(client: Client, message: Message):
                 await client.send_document(user_id, to_copy_msg.document.file_id, caption=cleaned_text, reply_markup=reply_markup)
             else:
                 await to_copy_msg.copy(user_id)
-
             completed_users.add(user_id)
-
         except (UserIsBlocked, PeerIdInvalid, InputUserDeactivated):
             if await sb.delete_user(user_id):
                 failed += 1
@@ -96,7 +123,6 @@ async def broadcasting_func(client: Client, message: Message):
                 )
             except Exception:
                 pass
-
         await asyncio.sleep(0.05)
 
     all_users = await sb.get_all_users()
